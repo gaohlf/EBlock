@@ -7,12 +7,24 @@
 #include "EblockErrors.h"
 #include "Log4Eblock.h"
 
+
+int globalFd = - 1;
+
+int tryOpen(void)
+{
+    if(globalFd < 0)
+    {
+        globalFd = open(CONTROL_PATH, O_RDWR);
+    }
+    return globalFd;
+}
+
 //取回一批request函数
 int fetchRequests(struct EBRequests *requests)
 {
     int fd, err;
 //    ELOG("fetchRequests() before open\n");
-    fd = open(CONTROL_PATH, O_RDWR);
+    fd = tryOpen();
     if(fd < 0) {
         ELOG("Failed to open device\n");
         return -EBLOCK_ERROR_TYPE_OPEN_FAILD;
@@ -20,7 +32,6 @@ int fetchRequests(struct EBRequests *requests)
 
 //    ELOG("fetchRequests() before ioctl p = %ld, \n", requests);
     err = ioctl(fd, EBLOCK_IOCTL_TYPE_FETCH_REQUESTS, requests);
-    close(fd);
     if(err != 0)
     {
         ELOG("fetchRequests failed ioctl requests = %p, err = %d\n", requests, err);
@@ -35,7 +46,7 @@ int requestDone(struct EBRequestDoneCtx *ctx)
 {
     int fd, err;
 
-    fd = open(CONTROL_PATH, O_RDWR);
+    fd = tryOpen();
     if(fd < 0) {
         ELOG("Failed to open device\n");
         return -EBLOCK_ERROR_TYPE_OPEN_FAILD;
@@ -46,7 +57,44 @@ int requestDone(struct EBRequestDoneCtx *ctx)
     {
         return -EBLOCK_ERROR_TYPE_IOCTL_EXE;
     }
+    return EBLOCK_ERROR_TYPE_OK;
+}
 
-    close(fd);
+//将读取结果写入到读请求中
+int writeToReadBio(struct EBRequest *request, void *src_buf)
+{
+    int fd;
+    ssize_t bytes_written ;
+    fd = tryOpen();
+    if(fd < 0) {
+        ELOG("Failed to open device\n");
+        return -EBLOCK_ERROR_TYPE_OPEN_FAILD;
+    }
+
+    bytes_written = pwrite(fd, src_buf, request->length, request->kernelID);
+    if (bytes_written != request->length)
+    {
+        return -EBLOCK_ERROR_TYPE_WRITE_FAILED;
+    }
+    return EBLOCK_ERROR_TYPE_OK;
+}
+
+//从写请求中读取数据
+int readFromWriteBio(struct EBRequest *request, void *dest_buf)
+{
+    int fd;
+    ssize_t bytes_read;
+    fd = tryOpen();
+    if(fd < 0) {
+        ELOG("Failed to open device\n");
+        return -EBLOCK_ERROR_TYPE_OPEN_FAILD;
+    }
+
+    bytes_read = pread(fd, dest_buf, request->length, request->kernelID);
+    if (bytes_read != request->length)
+    {
+        return -EBLOCK_ERROR_TYPE_READ_FAILED;
+    }
+
     return EBLOCK_ERROR_TYPE_OK;
 }

@@ -2,11 +2,11 @@
 #define EBLOCKREQUESTS_H
 
 #define SECTOR_SIZE 512L
-#define BLOCK_CONTEXT_NAME_SIZE 39
+#define BLOCK_CONTEXT_NAME_SIZE 103
 #define EBLOCK_CURRENT_VERSION  1
 #define EBLOCK_MAGIC            123
 //单次最大获取的请求数 加上EBRequests正好一个2K 超过2K后会使得 EBRequests过大不适宜在站上申请
-#define MAX_SWAP_REQUESTS_ONCE  31
+#define MAX_SWAP_REQUESTS_ONCE  15
 
 
 #ifdef __cplusplus
@@ -15,7 +15,7 @@ extern "C" {
 
 /***
  * 用户态和内核态交互获取请求的数据结构
- * 目前总共 64字节
+ * 目前总共 128字节
  * 每个IO会产生一个数据头
  * **********************/
 struct __attribute__((packed)) EBRequest

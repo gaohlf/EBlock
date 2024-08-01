@@ -65,68 +65,36 @@ struct EBlockContext * contextByFile(struct file *file)
     return context;
 }
 
+static void dumpBioFlags(struct bio *bio)
+{
+    printk(KERN_INFO "--------------------Start ECreateBlkDev::dumpBioFlags bio = %p----------------------------\n",bio);
+    printk(KERN_INFO "++bio->bi_rw = 0x%016lx (isWrite:%d)---------------\n", bio->bi_rw,
+           bio_data_dir(bio) == WRITE);
+    printk(KERN_INFO "++bio->bi_flags = 0x%016lx-------------------------\n", bio->bi_flags);
+    printk(KERN_INFO "++bio->bi_sector = 0x%016lx (%lu)-------------\n", bio->bi_sector,
+           bio->bi_sector * SECTOR_SIZE);
+    printk(KERN_INFO "++bio->bi_size = %u----------------------------\n", bio->bi_size);
+    printk(KERN_INFO "-----------------------END ECreateBlkDev::dumpBioFlags bio = %p----------------------------\n",bio);
+
+}
+
+//返回true则跳过该bio
+static bool ignoreBios( struct bio *bio)
+{
+    //控制命令BIO 直接返回成功
+    if (bio->bi_rw & REQ_DISCARD) {
+        printk(KERN_INFO "Skipping control command for bio: %p\n",bio);
+        dumpBioFlags(bio);
+        bio_endio(bio, 0); // 完成 BIO 请求
+        return true;
+    }
+
+    return false;
+}
+
 /**
  * 数据IO的关键函数
  * ************************************************************************/
-
-
-
-//        //遍历vector
-//        rq_for_each_segment(bv, req, iter) {
-//            char *buffer = page_address(bv->bv_page) + bv->bv_offset;
-//
-////            if (is_write)
-////                memcpy(data + sector_pos * SECTOR_SIZE, buffer, bv->bv_len);
-////            else
-////                memcpy(buffer, data + sector_pos * SECTOR_SIZE, bv->bv_len);
-//
-//            sector_pos += bv->bv_len / SECTOR_SIZE;
-//        }
-//static void eblock_make_request(struct request_queue *q)
-//{
-//    int ret = 0;
-//    struct request *req;
-//    printk(KERN_INFO "ECreateBlkDev::eblock_make_request IN q = %p\n", q);
-//    while ((req = blk_fetch_request(q)) != NULL) {
-//        struct EBlockContext * context = NULL;
-//
-//        if (req->cmd_flags & REQ_FLUSH || req->cmd_flags & REQ_FUA) {
-//            // 如果是控制请求，直接完成请求并返回
-//            __blk_end_request_all(req, 0);
-//            continue;
-//        }
-//
-//        ioStart();//取到一个IO
-//        context = contextByReq(req);
-//        if(context == NULL)
-//        {
-//            printk(KERN_ERR "ECreateBlkDev::eblock_make_request failed! context is null req = %p\n", req);
-//            __blk_end_request_all(req, -EIO);
-//            ioComplete();
-//            continue;
-//        }
-//
-//        //FIXME:异步改造
-//        printk(KERN_INFO "ECreateBlkDev::eblock_make_request before generateEnqueueEBRequest req = %p\n", req);
-//        //生成等待请求头，扔进等待队列
-//        ret = generateEnqueueEBRequest(context->name, req);
-//        printk(KERN_INFO "ECreateBlkDev::generateEnqueueEBRequest IN q = %p context->name = [%s] ret = %d req = %p\n",
-//               q, context->name, ret, req);
-//        if(ret != 0)
-//        {
-//            printk(KERN_ERR "ECreateBlkDev::eblock_make_request generateEnqueueEBRequest failed! req = %p ret = %d\n",
-//                    req, ret);
-//            __blk_end_request_all(req, ret);
-//            ioComplete();
-//        }
-//        printk(KERN_INFO "ECreateBlkDev::eblock_make_request before wakeupEBlockCond req = %p\n", req);
-//        //入队后唤醒等待fetch队列唤醒
-//        wakeupEBlockCond();
-//        printk(KERN_INFO "ECreateBlkDev::eblock_make_request after wakeupEBlockCond req = %p\n", req);
-//    }
-//    printk(KERN_INFO "ECreateBlkDev::eblock_make_request OUT = %p\n", q);
-//}
-
 //代替IO处理
 static void eblockMakeRequest(struct request_queue *q, struct bio *bio)
 {
@@ -135,11 +103,13 @@ static void eblockMakeRequest(struct request_queue *q, struct bio *bio)
     printk(KERN_INFO "ECreateBlkDev::eblockMakeRequest IN q = %p, bio = %p\n", q, bio);
     ioStart();//取到一个IO
 
-    if (bio->bi_rw & REQ_DISCARD) {
-        printk(KERN_INFO "Skipping control command for bio: %p\n",bio);
-        bio_endio(bio, 0); // 完成 BIO 请求
+    if(ignoreBios(bio))
+    {//FIXME:区分 忽略IO
+        ioComplete();
         return;
     }
+    //NOTE:打印bio的详细信息
+    dumpBioFlags(bio);
 
     context = contextByBio( bio);
     if(context == NULL)

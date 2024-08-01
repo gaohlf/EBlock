@@ -162,8 +162,10 @@ int generateEnqueueEBRequest(const char *name, struct bio * bi)
     strncpy(requestInKernel->req.devName, name, strlen(name));
     //生成唯一ID
     requestInKernel->req.kernelID = newRequestID();
+    //FIXME:在数据流关键路径加桩点
     //将EBRequestInKernel 插入等待唤醒队列
     enRequestQueue(requestInKernel);
+    //FIXME:在数据流关键路径加桩点
     return 0;
 }
 
@@ -172,6 +174,7 @@ void completeEBRequest(struct EBRequestInKernel * requestInKernel, int err)
 {
     int status = 0;
 //    struct bio *bio;
+    //FIXME:在数据流关键路径加桩点
     printk(KERN_ERR "EBlockRequestManager::completeEBRequest bio = %p err = %d\n", requestInKernel->bi, err);
 
     if(err != 0)
@@ -190,6 +193,8 @@ void completeEBRequest(struct EBRequestInKernel * requestInKernel, int err)
     bio_endio(requestInKernel->bi, status);
     printk(KERN_INFO "EBlockRequestManager::completeEBRequest after bio_endio bio = %p status = %d\n",
             requestInKernel->bi, status);
+
+    //FIXME:在数据流关键路径加桩点
     ioComplete();
     destroyEBRequest(requestInKernel);
 }
