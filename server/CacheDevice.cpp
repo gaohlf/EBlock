@@ -10,6 +10,7 @@
 #endif
 
 #include "EblockErrors.h"
+#include "common/EBlockRequestsCommon.h"
 #include <cassert>
 #ifdef LOCAL_DEIVCE
 FakeClient client;
@@ -19,6 +20,7 @@ S3Client client;//在client中已经包含bucekt信息
 
 int CacheDevice::doRequestSync(struct EBRequest * request, void *buff)
 {
+    ELOG_INFO("req:%s", toString(*request).c_str());
     if(request->isWrite)
     {
         return writeSync(request, buff);
@@ -31,7 +33,7 @@ int CacheDevice::doRequestSync(struct EBRequest * request, void *buff)
 
 int CacheDevice::writeSync(struct EBRequest * request, void *buff)
 {
-    ELOG_DEBUG("IN writeSync");
+    ELOG_INFO("req:%s", toString(*request).c_str());
     std::set<FileBlockDesc> blocks;
     //从cache元数据获取写入请求符号
     int ret = blockRangeMap.allocWriteFileDesc(*request, blocks);
@@ -70,10 +72,13 @@ int CacheDevice::writeSync(struct EBRequest * request, void *buff)
 int CacheDevice::readSync(struct EBRequest * request, void *buff)
 {
     std::set<FileBlockDesc> blocks;
+    ELOG_INFO("req:%s", toString(*request).c_str());
     //从cache元数据获取写入请求符号
     int ret = blockRangeMap.allocReadFileDesc(*request, blocks);
+    ELOG_INFO("req:%s ret=%d",toString(*request).c_str(), ret);
     if(ret != EBLOCK_ERROR_TYPE_OK)
     {
+        ELOG_ERROR("req:%s ret=%d",toString(*request).c_str(), ret);
         return ret;
     }
 
@@ -83,6 +88,7 @@ int CacheDevice::readSync(struct EBRequest * request, void *buff)
 
     for(auto fileIter = blocks.begin(); fileIter != blocks.end(); ++fileIter)
     {
+        ELOG_INFO("req:[%s] seg = [%s]",toString(*request).c_str(),fileIter->toString().c_str());
         std::string filename = fileIter->file.fileName();
         unsigned long len = fileIter->dataSizeInFile;
         unsigned long off = fileIter->dataOffInFile;
@@ -93,14 +99,22 @@ int CacheDevice::readSync(struct EBRequest * request, void *buff)
                      request->off, logicalStart);
         int off_inreq =  logicalStart - request->off;
         thisBuff = (char *)buff + off_inreq;
+
         bool success = client.getObject(filename, off, len, thisBuff);
         if(!success)
         {
+            ELOG_ERROR("req:[%s] seg = [%s] ret=%d",toString(*request).c_str(),fileIter->toString().c_str(), -EBLOCK_ERROR_TYPE_READ_FAILED);
             return -EBLOCK_ERROR_TYPE_READ_FAILED;
         }
         readBytes += len;
         assert(readBytes <= request->length);
     }
+
+    if(blocks.empty())
+    {
+        ELOG_ERROR("req:%s ret=%d",toString(*request).c_str(), EBLOCK_ERROR_TYPE_OK);
+    }
+
     ret = blockRangeMap.commitFileDesc(*request, blocks);
     return ret;
 }

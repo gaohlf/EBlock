@@ -4,6 +4,8 @@
 
 #include "common/EBlockTypes.h"
 #include "PendingRequestsLock.h"
+#include "common/EBlockRequestsCommon.h"
+#include "Log4Eblock.h"
 
 //是否有读写区域冲突，读读不冲突，
 static bool conflictWithRequest( struct EBRequest *reqA,  struct EBRequest *reqB)
@@ -92,20 +94,33 @@ bool PendingRequestsLock::conflictWithDoingRequest(struct EBRequest *req)
 void PendingRequestsLock::getLockSync(struct EBRequest *req)
 {
     unsigned long id = req->kernelID;
+    ELOG_INFO("req:%s try lck",toString(*req).c_str());
     std::unique_lock<std::mutex> lck(m);
+    ELOG_INFO("req:%s lck got",toString(*req).c_str());
     if(!this->conflictWithDoingRequest(req) && !this->conflictWithoutstandingRequest(req))
     {
         doingRquests.insert(std::make_pair(id, req));
+        ELOG_INFO("doingRquests.insert req:%s",toString(*req).c_str());
         return;
     }
     outstandingRequests.insert(std::make_pair(id, req));
-
+    ELOG_INFO("outstandingRequests.insert req:%s",toString(*req).c_str());
     while(true){//一直冲突一直等
-        cond.wait(lck);
+        //最多等待1秒 就被唤醒一次
+        ELOG_INFO("req:%s start wait",toString(*req).c_str());
+        cond.wait_for(lck, std::chrono::microseconds (1));
+        ELOG_INFO("req:%s stop wait checking",toString(*req).c_str());
         if(!this->conflictWithDoingRequest(req))
         {
+            ELOG_INFO("doingRquests.insert req:%s",toString(*req).c_str());
             doingRquests.insert(std::make_pair(id, req));
             outstandingRequests.erase(id);
+            //FIXME 存在多个 时多notify 一下 cond.notify_all();
+            if(!outstandingRequests.empty())
+            {
+                cond.notify_all();
+            }
+
             //NOTE:这里面不保证互斥顺序
             return;
         }

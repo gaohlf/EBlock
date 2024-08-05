@@ -45,6 +45,8 @@ void IODispatch::threadSelectFromEblock() {
 //        ELOG("requests.requestNum = %llu ret = %d", requests.requestNum, ret);
         for(u64 i = 0; i < requests.requestNum; ++i)
         {
+            //必须是扇区的整数倍
+            assert(requests.requests[i].off % 512 ==0);
             //生成task
             IOTask *task = new IOTask(&requests.requests[i]);
             ELOG_INFO("task [%p] request [%s]", task, toString(requests.requests[i]).c_str());

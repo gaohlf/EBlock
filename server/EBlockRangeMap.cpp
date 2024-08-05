@@ -11,7 +11,7 @@
 
 std::string EBlockRangeMap::s3Filename(IN struct EBRequest &request)
 {
-    std::string filename = "cache_" + std::to_string(request.off)+"_"+std::to_string(request.length);
+    std::string filename = "cache_" + std::to_string(request.off>>9)+"_"+std::to_string(request.length);
     return filename;
 }
 
@@ -37,15 +37,21 @@ int EBlockRangeMap::allocWriteFileDesc(IN struct EBRequest &request,OUT std::set
 int EBlockRangeMap::allocReadFileDesc(IN struct EBRequest &request, std::set<FileBlockDesc>  &fileBlocklist)
 {
     //IO范围锁
+    ELOG_INFO("req:%s try getLockSync",toString(request).c_str());
     requestsLock.getLockSync(&request);
+    ELOG_INFO("req:%s LockSync got",toString(request).c_str());
     FileBlockDesc desc(s3Filename(request), request.off, request.length);
     //保护 activeFiles和deadFiles 移动列表操作的锁
+    ELOG_INFO("req:%s try lock",toString(request).c_str());
     std::lock_guard<std::mutex> lock(blocksLock);
+    ELOG_INFO("req:%s lock got",toString(request).c_str());
     bool iscoverd = activeFiles.allInFileBlocks(desc,fileBlocklist);
     if(iscoverd)
     {
+        ELOG_INFO("req:%s allInFileBlocks iscoverd",toString(request).c_str());
         return EBLOCK_ERROR_TYPE_OK;
     }
+    ELOG_ERROR("req:%s allInFileBlocks not coverd",toString(request).c_str());
     //FIXME：暂不考虑从其他区域获取和合并的问题
     return EBLOCK_ERROR_TYPE_OK;
 }

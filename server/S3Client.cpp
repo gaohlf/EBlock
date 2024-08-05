@@ -31,8 +31,11 @@ void S3Client::showListObjects(void)
 
 }
 
-S3Client::S3Client() : credentials("89XZEQZH85XWDB76X5WI", "9pqKll45TlKo6Lxj3eLzABqaMKXVnDobmE9H9CbC"),
-                       s3_client(nullptr), endpoint("172.38.182.67:7480"), bucketname("222")
+
+S3Client::S3Client() : credentials("minioadmin", "minioadmin"),
+                       s3_client(nullptr), endpoint("192.168.116.1:9000"), bucketname("test123")
+//S3Client::S3Client() : credentials("89XZEQZH85XWDB76X5WI", "9pqKll45TlKo6Lxj3eLzABqaMKXVnDobmE9H9CbC"),
+//                       s3_client(nullptr), endpoint("172.38.182.67:7480"), bucketname("222")
 {
     Aws::SDKOptions options;
     Aws::InitAPI(options);
@@ -74,11 +77,13 @@ bool S3Client::putObject(std::string name, unsigned long length, const char *buf
 
 bool S3Client::getObject(std::string name,unsigned long off, unsigned long length, char *buff) {
     // 创建GetObjectRequest
+    ELOG_INFO("name:%s",name.c_str());
     Aws::S3::Model::GetObjectRequest request;
     request.SetBucket(bucketname);
     request.SetKey(name);
     std::string range = "bytes="+ std::to_string(off) + "-" + std::to_string(off+length);
-    request.SetRange("bytes=0-99");
+    ELOG_INFO("name:%s range:%s",name.c_str(),range.c_str());
+    request.SetRange(range);
     // 获取对象
     auto get_object_outcome = s3_client->GetObject(request);
 
@@ -91,19 +96,19 @@ bool S3Client::getObject(std::string name,unsigned long off, unsigned long lengt
         size_t buffer_size = object_data.size();
         if(buffer_size != length)
         {
-            ELOG("GetObject error: %buffer_size (%d) != length (%lu)\n",
+            ELOG_ERROR("GetObject error: %buffer_size (%d) != length (%lu)\n",
                  buffer_size ,length);
             return false;
         }
 
         memcpy(buff, object_data.c_str(), length);
 
-        ELOG("Successfully downloaded object from S3.\n");
+        ELOG_INFO("Successfully downloaded object from S3.\n");
         return true;
     }
     else
     {
-        ELOG("GetObject error: %s - %s\n",
+        ELOG_ERROR("GetObject error: %s - %s\n",
              get_object_outcome.GetError().GetExceptionName().c_str(),
              get_object_outcome.GetError().GetMessage().c_str() );
         return false;

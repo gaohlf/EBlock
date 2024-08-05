@@ -48,7 +48,7 @@ if(UNIX)
             server/unitTest/FakeClient.cpp server/unitTest/FakeClient.h
     )
 
-    target_compile_definitions(EblockServer PRIVATE LOCAL_DEIVCE=1)
+#    target_compile_definitions(EblockServer PRIVATE LOCAL_DEIVCE=1)
 
     # 查找AWS SDK包
     find_package(AWSSDK REQUIRED COMPONENTS s3)
